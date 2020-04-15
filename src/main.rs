@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::intrinsics::transmute;
 use std::io::Read;
 use std::panic::resume_unwind;
 
@@ -28,7 +29,7 @@ fn game_loop() {
     setup_graphics();
     setup_input();
 
-    let chip8 = Chip8::new();
+    let mut chip8 = Chip8::new();
     chip8.initialize();
     chip8.load_game("pong");
 
@@ -42,6 +43,25 @@ fn game_loop() {
     }
 }
 
+static CHIP8_FONTSET: [u8; 80] = [
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80,  // F
+];
+
 struct Chip8 {
     opcode: u16,
     memory: [u8; 4096],
@@ -54,6 +74,7 @@ struct Chip8 {
     stack: [u16; 16],
     sp: u16,
     key: [u8; 16],
+    draw_flag: bool,
 }
 
 impl Chip8 {
@@ -70,10 +91,11 @@ impl Chip8 {
         let stack: [u16; 16] = [0; 16];
         let sp: u16 = 0;
         let key: [u8; 16] = [0; 16];
+        let draw_flag = false;
 
         // load fontset
         for i in 0..80 {
-            memory[i] = chip_fontset[i];
+            memory[i] = CHIP8_FONTSET[i];
         }
         // load program
         read_binary(&mut memory[512..]);
@@ -90,6 +112,7 @@ impl Chip8 {
             stack,
             sp,
             key,
+            draw_flag,
         }
     }
 
@@ -104,6 +127,51 @@ impl Chip8 {
             0xA000 => {
                 self.index_register = self.opcode & 0x0FFF; // last 12 bits
                 self.pc += 2;
+            }
+            0x0000 => {
+                match self.opcode & 0x000F { // second four bits
+                    0x0000 => { /* 0x00E0: clear screen */ }
+                    0x000E => { /* 0x000E: returns from subroutine */ }
+                    _ => { println!("[0x0000]: {} is not recognized", self.opcode) }
+                }
+            }
+            0x2000 => {
+                self.stack[self.sp] = self.pc;
+                sp += 1;
+                self.pc = self.opcode & 0x0FFF;
+            }
+            0x0004 => {
+                if self.v_registers[(self.opcode & 0x00F0) >> 4] > 0xFF - self.v_registers[(self.opcode & 0xF00) >> 8] {
+                    self.v_registers[0xF] = 1; // carry
+                } else {
+                    self.v_registers[0xF] = 0;
+                }
+                self.v_registers[(self.opcode & 0x0F00 >> 8)] += self.v_registers[(self.opcode & 0x00F0) >> 4];
+                pc += 2;
+            }
+            0x0033 => {
+                self.memory[self.index_register] = self.v_registers[(self.opcode & 0x0F00) >> 8] / 100;
+                self.memory[self.index_register + 1] = (self.v_registers[(self.opcode & 0x0F00) >> 8] / 10) % 10;
+                self.memory[self.index_register + 2] = (self.v_registers[(self.opcode & 0x0F00) >> 8] % 100) % 10;
+            }
+            0xD000 => {
+                let x: u8 = self.v_registers[(self.opcode & 0x0F00) >> 8];
+                let y: u8 = self.v_registers[(self.opcode & 0x0F00) >> 4];
+                let height: u8 = (self.opcode & 0x000F) as u8;
+                self.v_registers[0xF] = 0;
+                for yline in 0..height {
+                    let pixel = self.memory[self.index_register + yline as u16];
+                    for xline in 0..8 {
+                        if (pixel & (0x80 >> xline)) != 0 {
+                            if gfx[(x + xline + ((y + yline) * 64))] == 1 {
+                                self.v_registers[0xf] = 1;
+                            }
+                            gfx[(x + xline + ((y + yline) * 64))] ^= 1;
+                        }
+                    }
+                }
+                self.draw_flag = true;
+                self.program_counter += 2;
             }
             _ => { println!("{} is not recognized", self.opcode) }
         }

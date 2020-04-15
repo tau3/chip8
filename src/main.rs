@@ -67,35 +67,23 @@ impl<T: Clone + From<u8>> Buffer<T> {
     }
 }
 
-impl<T: Clone + From<u8>> std::ops::Index<usize> for Buffer<T> {
+impl<T: Clone + From<u8>, U: Into<usize>> std::ops::Index<U> for Buffer<T> {
     type Output = T;
 
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.buffer[index]
+    fn index(&self, index: U) -> &Self::Output {
+        &self.buffer[index.into()]
     }
 }
 
-impl<T: Clone + From<u8>> std::ops::Index<u16> for Buffer<T> {
-    type Output = T;
-
-    fn index(&self, index: u16) -> &Self::Output {
-        &self.buffer[index as usize]
+impl<T: Clone + From<u8>, U: Into<usize>> std::ops::IndexMut<U> for Buffer<T> {
+    fn index_mut(&mut self, index: U) -> &mut Self::Output {
+        &mut self.buffer[index.into()]
     }
 }
 
-impl<T: Clone + From<u8>> std::ops::Index<u8> for Buffer<T> {
-    type Output = T;
-
-    fn index(&self, index: u8) -> &Self::Output {
-        &self.buffer[index as usize]
-    }
-}
-
-impl<T: Clone + From<u8>> std::ops::Index<i32> for Buffer<T> {
-    type Output = T;
-
-    fn index(&self, index: i32) -> &Self::Output {
-        &self.buffer[index as usize]
+impl<T: Clone + From<u8>> Buffer<T> {
+    fn slice_from(&mut self, from: usize) -> &mut [T] {
+        &mut self.buffer[from..]
     }
 }
 
@@ -152,13 +140,13 @@ impl Chip8 {
     }
 
     fn load_game(&mut self, name: &str) {
-        let mut file = File::open("pong").expect("failed to read game");
-        file.read_exact(&mut self.memory[512..]);
+        let mut file = File::open(name).expect("failed to read game");
+        file.read_exact(self.memory.slice_from(512));
     }
 
     fn emulate_cycle(&mut self) {
         // fetch opcode (two bytes)
-        self.opcode = ((self.memory[self.program_counter] as u16) << 8) | self.memory[self.program_counter + 1].into();
+        self.opcode = ((self.memory[self.program_counter] as u16) << 8) | self.memory[self.program_counter + 1] as u16;
 
         // decode opcode
         match self.opcode & FIRST_FOUR_BITS_MASK_16 {
@@ -181,9 +169,9 @@ impl Chip8 {
             }
             0x0004 => {
                 if self.v_registers[(self.opcode & THIRD_FOUR_BITS_MASK_16) >> 4] > 0xFF - self.v_registers[(self.opcode & 0xF00) >> 8] {
-                    self.v_registers[0xF] = 1u8; // carry
+                    self.v_registers[0xFu8] = 1u8; // carry
                 } else {
-                    self.v_registers[0xF] = 0u8;
+                    self.v_registers[0xFu8] = 0u8;
                 }
                 self.v_registers[(self.opcode & THIRD_FOUR_BITS_MASK_16 >> 8)] += self.v_registers[(self.opcode & THIRD_FOUR_BITS_MASK_16) >> 4];
                 self.program_counter += 2;
@@ -197,13 +185,13 @@ impl Chip8 {
                 let x: u8 = self.v_registers[(self.opcode & SECOND_FOUR_BITS_MASK_16) >> 8];
                 let y: u8 = self.v_registers[(self.opcode & SECOND_FOUR_BITS_MASK_16) >> 4];
                 let height: u8 = (self.opcode & FOURTH_FOUR_BITS_MASK_16) as u8;
-                self.v_registers[0xF] = 0u8;
+                self.v_registers[0xFu8] = 0u8;
                 for yline in 0..height {
                     let pixel = self.memory[self.index_register + yline as u16];
                     for xline in 0..8 {
                         if (pixel & (0x80 >> xline)) != 0 {
                             if self.gfx[(x + xline + ((y + yline) * 64))] == 1 {
-                                self.v_registers[0xf] = 1u8;
+                                self.v_registers[0xFu8] = 1u8;
                             }
                             self.gfx[(x + xline + ((y + yline) * 64))] ^= 1;
                         }

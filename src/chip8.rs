@@ -9,7 +9,7 @@ pub struct Chip8 {
     vr: Buffer<u8>,
     ir: u16,
     pc: u16,
-    gfx: Buffer<u8>,
+    pub gfx: Buffer<u8>,
     delay_timer: u8,
     sound_timer: u8,
     stack: Buffer<u16>,
@@ -72,12 +72,14 @@ impl Chip8 {
 
         // decode opcode
         match self.opcode & FIRST_FOUR_BITS {
+            // ANNN: Sets index register to the address NNN
             0xA000 => {
                 self.ir = self.opcode & LAST_TWELVE_BITS;
                 self.pc += 2;
             }
             0x0000 => {
                 match self.opcode & FOURTH_FOUR_BITS {
+//                    0x0000 => { /* 0x00E0: clear screen */ }
                     0x000E => {
                         self.sp -= 1;
                         self.pc = self.stack[self.sp];
@@ -138,8 +140,7 @@ impl Chip8 {
                 }
             }
             0x6000 => {
-                // upper bits will be truncated during cast from u16 to u8
-                self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] = (self.opcode & FIRST_EIGHT_BITS) as u8;
+                self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] = (self.opcode & FIRST_EIGHT_BITS) as u8; // upper bits will be truncated
                 self.pc += 2;
             }
             0x7000 => {
@@ -180,25 +181,10 @@ impl Chip8 {
         self.draw_flag
     }
 
-    pub fn is_set(&self, row: usize, col: usize) -> bool {
-        self.gfx[row * WIDTH + col] == 1
-    }
-
     pub fn set_keys(&self) {}
 }
 
 fn beep() {}
-
-pub static WIDTH: usize = 64;
-pub static HEIGHT: usize = 32;
-
-static FIRST_FOUR_BITS: u16 = 0xF000;
-static LAST_TWELVE_BITS: u16 = 0x0FFF;
-static FOURTH_FOUR_BITS: u16 = 0x000F;
-static THIRD_FOUR_BITS: u16 = 0x00F0;
-static SECOND_FOUR_BITS: u16 = 0x0F00;
-static LAST_EIGHT_BITS: u16 = 0x00FF;
-static FIRST_EIGHT_BITS: u16 = 0xFF00;
 
 static CHIP8_FONTSET: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -218,3 +204,14 @@ static CHIP8_FONTSET: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
+
+static FIRST_FOUR_BITS: u16 = 0xF000;
+static LAST_TWELVE_BITS: u16 = 0x0FFF;
+static FOURTH_FOUR_BITS: u16 = 0x000F;
+static THIRD_FOUR_BITS: u16 = 0x00F0;
+static SECOND_FOUR_BITS: u16 = 0x0F00;
+static LAST_EIGHT_BITS: u16 = 0x00FF;
+static FIRST_EIGHT_BITS: u16 = 0xFF;
+
+pub static WIDTH: usize = 64;
+pub static HEIGHT: usize = 32;

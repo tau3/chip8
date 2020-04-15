@@ -10,13 +10,13 @@ use sdl2::video::Window;
 
 use crate::chip8::Chip8;
 
-mod chip8;
 mod buffer;
+mod chip8;
 
 fn draw_graphics(canvas: &mut Canvas<Window>, chip8: &Chip8) {
     for row in 0..chip8::HEIGHT {
         for col in 0..chip8::WIDTH {
-            let color = if chip8.is_set(row, col) { WHITE } else { BLACK };
+            let color = if chip8.gfx[row * chip8::WIDTH + col] == 1 { WHITE } else { BLACK };
             canvas.set_draw_color(color);
             canvas.fill_rect(Rect::new(
                 (col * SCALE as usize) as i32,

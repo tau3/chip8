@@ -6,17 +6,39 @@ use std::time::Duration;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
+use sdl2::rect::Rect;
+use sdl2::render::Canvas;
+use sdl2::video::Window;
 
-fn draw_graphics() {}
+use crate::buffer::Buffer;
+
+mod buffer;
+
+fn draw_graphics(canvas: &mut Canvas<Window>, chip8: &Chip8) {
+    canvas.clear();
+    println!("draw {:?}", chip8.gfx);
+    for row in 0..HEIGHT {
+        for col in 0..WIDTH {
+            let color = if chip8.gfx[row * WIDTH + col] == 1 { WHITE } else { BLACK };
+            canvas.set_draw_color(color);
+            canvas.fill_rect(Rect::new(
+                (col * SCALE as usize) as i32,
+                (row * SCALE as usize) as i32,
+                SCALE,
+                SCALE)).expect(&format!("failed to draw rect at row {}, column {}", row, col));
+        }
+    }
+    canvas.present();
+}
 
 fn main() -> Result<(), String> {
     let mut chip8 = Chip8::new();
-    chip8.load_game("pong2.c8");
+    chip8.load_game("invaders.c8");
 
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
 
-    let window = video_subsystem.window("chip8", 800, 600)
+    let window = video_subsystem.window("chip8", SCALE * WIDTH as u32, SCALE * HEIGHT as u32)
         .position_centered()
         .opengl()
         .build()
@@ -24,9 +46,6 @@ fn main() -> Result<(), String> {
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
 
-    canvas.set_draw_color(Color::RGB(255, 0, 0));
-    canvas.clear();
-    canvas.present();
     let mut event_pump = sdl_context.event_pump()?;
 
     'running: loop {
@@ -41,11 +60,12 @@ fn main() -> Result<(), String> {
 
         canvas.clear();
         canvas.present();
+
         thread::sleep(Duration::from_millis(1000 / 60));
 
         chip8.emulate_cycle();
         if chip8.is_draw_flag() {
-            draw_graphics();
+            draw_graphics(&mut canvas, &chip8);
         }
         chip8.set_keys();
     }
@@ -80,36 +100,12 @@ static SECOND_FOUR_BITS_MASK_16: u16 = 0x0F00;
 static FIRST_EIGHT_BITS_MASK_16: u16 = 0x00FF;
 static LAST_EIGHT_BITS_MASK_16: u16 = 0xFF;
 
-struct Buffer<T: Clone + From<u8>> {
-    buffer: Vec<T>,
-}
+static WIDTH: usize = 64;
+static HEIGHT: usize = 32;
+static SCALE: u32 = 10;
 
-impl<T: Clone + From<u8>> Buffer<T> {
-    fn new(size: usize) -> Buffer<T> {
-        let memory = vec![(0 as u8).into(); size];
-        Buffer { buffer: memory }
-    }
-}
-
-impl<T: Clone + From<u8>, U: Into<usize>> std::ops::Index<U> for Buffer<T> {
-    type Output = T;
-
-    fn index(&self, index: U) -> &Self::Output {
-        &self.buffer[index.into()]
-    }
-}
-
-impl<T: Clone + From<u8>, U: Into<usize>> std::ops::IndexMut<U> for Buffer<T> {
-    fn index_mut(&mut self, index: U) -> &mut Self::Output {
-        &mut self.buffer[index.into()]
-    }
-}
-
-impl<T: Clone + From<u8>> Buffer<T> {
-    fn slice_from(&mut self, from: usize) -> &mut [T] {
-        &mut self.buffer[from..]
-    }
-}
+static BLACK: Color = Color::RGB(0, 0, 0);
+static WHITE: Color = Color::RGB(255, 255, 255);
 
 struct Chip8 {
     opcode: u16,
@@ -134,7 +130,7 @@ impl Chip8 {
         let v_registers = Buffer::new(16);
         let index_register: u16 = 0;
         let program_counter: u16 = 0x200;
-        let gfx = Buffer::new(64 * 32);
+        let gfx = Buffer::new(WIDTH * HEIGHT);
         let delay_timer: u8 = 0;
         let sound_timer: u8 = 0;
         let stack = Buffer::new(16);
@@ -219,10 +215,10 @@ impl Chip8 {
                     let pixel = self.memory[self.index_register + yline as u16];
                     for xline in 0..8 {
                         if (pixel & (0x80 >> xline)) != 0 {
-                            if self.gfx[(x + xline + ((y + yline) * 64))] == 1 {
+                            if self.gfx[(x + xline + ((y + yline) * WIDTH as u8))] == 1 {
                                 self.v_registers[0xFu8] = 1u8;
                             }
-                            self.gfx[(x + xline + ((y + yline) * 64))] ^= 1;
+                            self.gfx[(x + xline + ((y + yline) * WIDTH as u8))] ^= 1;
                         }
                     }
                 }

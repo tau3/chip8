@@ -98,7 +98,7 @@ struct Chip8 {
     sound_timer: u8,
     stack: Buffer<u16>,
     sp: u16,
-    key: [u8; 16],
+    key: Buffer<u8>,
     draw_flag: bool,
 }
 
@@ -115,7 +115,7 @@ impl Chip8 {
         let sound_timer: u8 = 0;
         let stack = Buffer::new(16);
         let sp: u16 = 0;
-        let key: [u8; 16] = [0; 16];
+        let key = Buffer::new(16);
         let draw_flag = false;
 
         // load fontset
@@ -140,8 +140,8 @@ impl Chip8 {
     }
 
     fn load_game(&mut self, name: &str) {
-        let mut file = File::open(name).expect("failed to read game");
-        file.read_exact(self.memory.slice_from(512));
+        let mut file = File::open(name).expect("failed to open game");
+        file.read_exact(self.memory.slice_from(512)).expect("failed to read game");
     }
 
     fn emulate_cycle(&mut self) {
@@ -199,6 +199,18 @@ impl Chip8 {
                 }
                 self.draw_flag = true;
                 self.program_counter += 2;
+            }
+            0xE000 => {
+                match self.opcode & 0x00FF {
+                    0x009E => {
+                        if self.key[self.v_registers[(self.opcode & 0x0F00) >> 8]] != 0 {
+                            self.program_counter += 4;
+                        } else {
+                            self.program_counter += 2;
+                        }
+                    }
+                    _ => { println!("[0XE000]: {:X} is not recognized", self.opcode) }
+                }
             }
             _ => { println!("{:X} is not recognized", self.opcode) }
         }

@@ -9,7 +9,7 @@ pub struct Chip8 {
     vr: Buffer<u8>,
     ir: u16,
     pc: u16,
-    pub gfx: Buffer<u8>,
+    gfx: Buffer<u8>,
     delay_timer: u8,
     sound_timer: u8,
     stack: Buffer<u16>,
@@ -19,9 +19,10 @@ pub struct Chip8 {
 }
 
 impl Chip8 {
+    // TODO refactor
     pub fn new() -> Self {
         // reset everything
-        let opcode: u16 = 5;
+        let opcode: u16 = 0;
         let mut memory = Buffer::new(4096);
         let vr = Buffer::new(16);
         let ir: u16 = 0;
@@ -68,7 +69,6 @@ impl Chip8 {
     pub fn emulate_cycle(&mut self) {
         // fetch opcode (two bytes)
         self.opcode = ((self.memory[self.pc] as u16) << 8) | self.memory[self.pc + 1] as u16;
-//        println!("opcode {:X}, stack {:?}, sp {}", self.opcode, self.stack, self.sp);
 
         // decode opcode
         match self.opcode & FIRST_FOUR_BITS {
@@ -140,7 +140,8 @@ impl Chip8 {
                 }
             }
             0x6000 => {
-                self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] = (self.opcode & FIRST_EIGHT_BITS) as u8; // upper bits will be truncated
+                // upper bits will be truncated while casting u16 to u8
+                self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] = (self.opcode & FIRST_EIGHT_BITS) as u8;
                 self.pc += 2;
             }
             0x7000 => {
@@ -182,6 +183,10 @@ impl Chip8 {
     }
 
     pub fn set_keys(&self) {}
+
+    pub fn is_set(&self, row: usize, col: usize) -> bool {
+        self.gfx[row * WIDTH + col] == 1
+    }
 }
 
 fn beep() {}

@@ -15,8 +15,6 @@ use crate::buffer::Buffer;
 mod buffer;
 
 fn draw_graphics(canvas: &mut Canvas<Window>, chip8: &Chip8) {
-    canvas.clear();
-    println!("draw {:?}", chip8.gfx);
     for row in 0..HEIGHT {
         for col in 0..WIDTH {
             let color = if chip8.gfx[row * WIDTH + col] == 1 { WHITE } else { BLACK };
@@ -33,7 +31,7 @@ fn draw_graphics(canvas: &mut Canvas<Window>, chip8: &Chip8) {
 
 fn main() -> Result<(), String> {
     let mut chip8 = Chip8::new();
-    chip8.load_game("invaders.c8");
+    chip8.load_game("pong2.c8");
 
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
@@ -62,6 +60,7 @@ fn main() -> Result<(), String> {
         canvas.present();
 
         thread::sleep(Duration::from_millis(1000 / 60));
+//        thread::sleep(Duration::from_millis(5 * 1000 / 60));
 
         chip8.emulate_cycle();
         if chip8.is_draw_flag() {
@@ -97,8 +96,8 @@ static LAST_TWELVE_BITS_MASK_16: u16 = 0x0FFF;
 static FOURTH_FOUR_BITS_MASK_16: u16 = 0x000F;
 static THIRD_FOUR_BITS_MASK_16: u16 = 0x00F0;
 static SECOND_FOUR_BITS_MASK_16: u16 = 0x0F00;
-static FIRST_EIGHT_BITS_MASK_16: u16 = 0x00FF;
-static LAST_EIGHT_BITS_MASK_16: u16 = 0xFF;
+static LAST_EIGHT_BITS_MASK_16: u16 = 0x00FF;
+static FIRST_EIGHT_BITS_MASK_16: u16 = 0xFF;
 
 static WIDTH: usize = 64;
 static HEIGHT: usize = 32;
@@ -172,6 +171,7 @@ impl Chip8 {
     fn emulate_cycle(&mut self) {
         // fetch opcode (two bytes)
         self.opcode = ((self.memory[self.program_counter] as u16) << 8) | self.memory[self.program_counter + 1] as u16;
+//        println!("opcode {:X}, stack {:?}, sp {}", self.opcode, self.stack, self.sp);
 
         // decode opcode
         match self.opcode & FIRST_FOUR_BITS_MASK_16 {
@@ -182,8 +182,12 @@ impl Chip8 {
             }
             0x0000 => {
                 match self.opcode & FOURTH_FOUR_BITS_MASK_16 {
-                    0x0000 => { /* 0x00E0: clear screen */ }
-                    0x000E => { /* 0x000E: returns from subroutine */ }
+//                    0x0000 => { /* 0x00E0: clear screen */ }
+                    0x000E => {
+                        self.sp -= 1;
+                        self.program_counter = self.stack[self.sp];
+                        self.program_counter += 2;
+                    }
                     _ => { println!("[0x0000]: {:X} is not recognized", self.opcode) }
                 }
             }
@@ -208,17 +212,18 @@ impl Chip8 {
             }
             0xD000 => {
                 let x: u8 = self.v_registers[(self.opcode & SECOND_FOUR_BITS_MASK_16) >> 8];
-                let y: u8 = self.v_registers[(self.opcode & SECOND_FOUR_BITS_MASK_16) >> 4];
+                let y: u8 = self.v_registers[(self.opcode & THIRD_FOUR_BITS_MASK_16) >> 4];
                 let height: u8 = (self.opcode & FOURTH_FOUR_BITS_MASK_16) as u8;
                 self.v_registers[0xFu8] = 0u8;
                 for yline in 0..height {
                     let pixel = self.memory[self.index_register + yline as u16];
                     for xline in 0..8 {
                         if (pixel & (0x80 >> xline)) != 0 {
-                            if self.gfx[(x + xline + ((y + yline) * WIDTH as u8))] == 1 {
+                            let pos = x as usize + xline as usize + (y + yline) as usize * WIDTH;
+                            if self.gfx[pos] == 1 {
                                 self.v_registers[0xFu8] = 1u8;
                             }
-                            self.gfx[(x + xline + ((y + yline) * WIDTH as u8))] ^= 1;
+                            self.gfx[pos] ^= 1;
                         }
                     }
                 }
@@ -226,7 +231,7 @@ impl Chip8 {
                 self.program_counter += 2;
             }
             0xE000 => {
-                match self.opcode & FIRST_EIGHT_BITS_MASK_16 {
+                match self.opcode & LAST_EIGHT_BITS_MASK_16 {
                     0x009E => {
                         if self.key[self.v_registers[(self.opcode & SECOND_FOUR_BITS_MASK_16) >> 8]] != 0 {
                             self.program_counter += 4;
@@ -238,7 +243,27 @@ impl Chip8 {
                 }
             }
             0x6000 => {
-                self.v_registers[(self.opcode & SECOND_FOUR_BITS_MASK_16) >> 8] = (self.opcode & LAST_EIGHT_BITS_MASK_16) as u8; // upper bits will be truncated
+                self.v_registers[(self.opcode & SECOND_FOUR_BITS_MASK_16) >> 8] = (self.opcode & FIRST_EIGHT_BITS_MASK_16) as u8; // upper bits will be truncated
+                self.program_counter += 2;
+            }
+            0x7000 => {
+                let x = (self.opcode & SECOND_FOUR_BITS_MASK_16) >> 8;
+                let nn = (self.opcode & FIRST_EIGHT_BITS_MASK_16) as u8;
+                self.v_registers[x] += nn;
+                self.program_counter += 2;
+            }
+            0x3000 => {
+                let x = (self.opcode & SECOND_FOUR_BITS_MASK_16) >> 8;
+                let nn = (self.opcode & FIRST_EIGHT_BITS_MASK_16) as u8;
+                if self.v_registers[x] == nn {
+                    self.program_counter += 4;
+                } else {
+                    self.program_counter += 2;
+                }
+            }
+            0x1000 => {
+                let nnn = self.opcode & LAST_TWELVE_BITS_MASK_16;
+                self.program_counter = nnn;
             }
             _ => { println!("{:X} is not recognized", self.opcode) }
         }
@@ -256,7 +281,7 @@ impl Chip8 {
     }
 
     fn is_draw_flag(&self) -> bool {
-        true
+        self.draw_flag
     }
 
     fn set_keys(&self) {}

@@ -56,11 +56,7 @@ fn main() -> Result<(), String> {
             }
         }
 
-        canvas.clear();
-        canvas.present();
-
         thread::sleep(Duration::from_millis(1000 / 60));
-//        thread::sleep(Duration::from_millis(5 * 1000 / 60));
 
         chip8.emulate_cycle();
         if chip8.is_draw_flag() {

@@ -3,24 +3,44 @@ use std::io::Read;
 use std::thread;
 use std::time::Duration;
 
-fn main() {
-    game_loop();
-}
-
-fn setup_graphics() {}
-
-fn setup_input() {}
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::pixels::Color;
 
 fn draw_graphics() {}
 
-fn game_loop() {
-    setup_graphics();
-    setup_input();
-
+fn main() -> Result<(), String> {
     let mut chip8 = Chip8::new();
     chip8.load_game("pong2.c8");
 
-    loop {
+    let sdl_context = sdl2::init()?;
+    let video_subsystem = sdl_context.video()?;
+
+    let window = video_subsystem.window("chip8", 800, 600)
+        .position_centered()
+        .opengl()
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+
+    canvas.set_draw_color(Color::RGB(255, 0, 0));
+    canvas.clear();
+    canvas.present();
+    let mut event_pump = sdl_context.event_pump()?;
+
+    'running: loop {
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    break 'running;
+                }
+                _ => {}
+            }
+        }
+
+        canvas.clear();
+        canvas.present();
         thread::sleep(Duration::from_millis(1000 / 60));
 
         chip8.emulate_cycle();
@@ -29,6 +49,8 @@ fn game_loop() {
         }
         chip8.set_keys();
     }
+
+    Ok(())
 }
 
 static CHIP8_FONTSET: [u8; 80] = [
@@ -55,6 +77,8 @@ static LAST_TWELVE_BITS_MASK_16: u16 = 0x0FFF;
 static FOURTH_FOUR_BITS_MASK_16: u16 = 0x000F;
 static THIRD_FOUR_BITS_MASK_16: u16 = 0x00F0;
 static SECOND_FOUR_BITS_MASK_16: u16 = 0x0F00;
+static FIRST_EIGHT_BITS_MASK_16: u16 = 0x00FF;
+static LAST_EIGHT_BITS_MASK_16: u16 = 0xFF;
 
 struct Buffer<T: Clone + From<u8>> {
     buffer: Vec<T>,
@@ -141,7 +165,12 @@ impl Chip8 {
 
     fn load_game(&mut self, name: &str) {
         let mut file = File::open(name).expect("failed to open game");
-        file.read_exact(self.memory.slice_from(512)).expect("failed to read game");
+        match file.read_exact(self.memory.slice_from(512)) {
+            Err(ref e) => {
+                if e.kind() == std::io::ErrorKind::Interrupted { panic!("failed to read game") }
+            }
+            _ => {}
+        };
     }
 
     fn emulate_cycle(&mut self) {
@@ -201,9 +230,9 @@ impl Chip8 {
                 self.program_counter += 2;
             }
             0xE000 => {
-                match self.opcode & 0x00FF {
+                match self.opcode & FIRST_EIGHT_BITS_MASK_16 {
                     0x009E => {
-                        if self.key[self.v_registers[(self.opcode & 0x0F00) >> 8]] != 0 {
+                        if self.key[self.v_registers[(self.opcode & SECOND_FOUR_BITS_MASK_16) >> 8]] != 0 {
                             self.program_counter += 4;
                         } else {
                             self.program_counter += 2;
@@ -211,6 +240,9 @@ impl Chip8 {
                     }
                     _ => { println!("[0XE000]: {:X} is not recognized", self.opcode) }
                 }
+            }
+            0x6000 => {
+                self.v_registers[(self.opcode & SECOND_FOUR_BITS_MASK_16) >> 8] = (self.opcode & LAST_EIGHT_BITS_MASK_16) as u8; // upper bits will be truncated
             }
             _ => { println!("{:X} is not recognized", self.opcode) }
         }

@@ -102,11 +102,6 @@ impl Chip8 {
                 self.vr[(self.opcode & THIRD_FOUR_BITS >> 8)] += self.vr[(self.opcode & THIRD_FOUR_BITS) >> 4];
                 self.pc += 2;
             }
-            0x0033 => {
-                self.memory[self.ir] = self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] / 100;
-                self.memory[self.ir + 1] = (self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] / 10) % 10;
-                self.memory[self.ir + 2] = (self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] % 100) % 10;
-            }
             0xD000 => {
                 let x: u8 = self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8];
                 let y: u8 = self.vr[(self.opcode & THIRD_FOUR_BITS) >> 4];
@@ -162,6 +157,41 @@ impl Chip8 {
             0x1000 => {
                 let nnn = self.opcode & LAST_TWELVE_BITS;
                 self.pc = nnn;
+            }
+            0xF000 => {
+                match self.opcode & LAST_EIGHT_BITS {
+                    0x0033 => {
+                        self.memory[self.ir] = self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] / 100;
+                        self.memory[self.ir + 1] = (self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] / 10) % 10;
+                        self.memory[self.ir + 2] = (self.vr[(self.opcode & SECOND_FOUR_BITS) >> 8] % 100) % 10;
+                        self.pc += 2;
+                    }
+                    0x0065 => {
+                        let x = (self.opcode & SECOND_FOUR_BITS) >> 8;
+                        let mut offset = self.ir;
+                        for i in 0..=x {
+                            self.vr[i] = self.memory[offset];
+                            offset += 1;
+                        }
+                        self.pc += 2;
+                    }
+                    0x0029 => {
+                        let x = (self.opcode & SECOND_FOUR_BITS) >> 8;
+                        self.ir = self.vr[x] as u16 * 5;
+                        self.pc += 2;
+                    }
+                    0x0015 => {
+                        let x = (self.opcode & SECOND_FOUR_BITS) >> 8;
+                        self.delay_timer = x as u8;
+                        self.pc += 2;
+                    }
+                    0x0007 => {
+                        let x = (self.opcode & SECOND_FOUR_BITS) >> 8;
+                        self.vr[x] = self.delay_timer;
+                        self.pc += 2;
+                    }
+                    _ => { println!("[0xF000]: {:X} is not recognized", self.opcode) }
+                }
             }
             _ => { println!("{:X} is not recognized", self.opcode) }
         }

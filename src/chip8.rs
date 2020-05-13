@@ -80,7 +80,7 @@ impl Chip8 {
             }
             0xC000 => {
                 let x = self.opcode.x();
-                let nn = (self.opcode & LAST_EIGHT_BITS) as u8;
+                let nn = self.opcode.nn();
                 let random_number: u8 = rand::thread_rng().gen_range(0, 255);
                 self.vr[x] = nn & random_number;
                 self.pc += 2;
@@ -103,6 +103,12 @@ impl Chip8 {
                         self.vr[x] = self.vr[x].wrapping_add(self.vr[(self.opcode & THIRD_FOUR_BITS) >> 4]);
                         self.pc += 2;
                     }
+                    0x0000 => {
+                        let x = self.opcode.x();
+                        let y = self.opcode.y();
+                        self.vr[x] = self.vr[y];
+                        self.pc += 2;
+                    }
                     _ => { println!("[0x8000]: {:X} is not recognized", self.opcode) }
                 }
             }
@@ -122,15 +128,15 @@ impl Chip8 {
                 self.pc = self.opcode & LAST_TWELVE_BITS;
             }
             0xD000 => {
-                let x: u8 = self.vr[self.opcode.x()];
-                let y: u8 = self.vr[(self.opcode & THIRD_FOUR_BITS) >> 4];
+                let vx: u8 = self.vr[self.opcode.x()];
+                let vy: u8 = self.vr[(self.opcode & THIRD_FOUR_BITS) >> 4];
                 let height: u8 = (self.opcode & LAST_FOUR_BITS) as u8;
                 self.vr[0xFu8] = 0u8;
                 for yline in 0..height {
                     let pixel = self.memory[self.ir + yline as u16];
                     for xline in 0..8 {
                         if (pixel & (0x80 >> xline)) != 0 {
-                            let pos = x as usize + xline as usize + (y + yline) as usize * WIDTH;
+                            let pos = vx as usize + xline as usize + (vy + yline) as usize * WIDTH;
                             if self.gfx[pos] == 1 {
                                 self.vr[0xFu8] = 1u8;
                             }
@@ -169,14 +175,23 @@ impl Chip8 {
             }
             0x7000 => {
                 let x = self.opcode.x();
-                let nn = (self.opcode & FIRST_EIGHT_BITS) as u8;
+                let nn = self.opcode.nn();
                 self.vr[x] += nn;
                 self.pc += 2;
             }
             0x3000 => {
                 let x = self.opcode.x();
-                let nn = (self.opcode & FIRST_EIGHT_BITS) as u8;
+                let nn = self.opcode.nn();
                 if self.vr[x] == nn {
+                    self.pc += 4;
+                } else {
+                    self.pc += 2;
+                }
+            }
+            0x4000 => {
+                let x = self.opcode.x();
+                let nn = self.opcode.nn();
+                if self.vr[x] != nn {
                     self.pc += 4;
                 } else {
                     self.pc += 2;
@@ -283,6 +298,8 @@ trait OpCode {
     fn x(&self) -> u16;
 
     fn y(&self) -> u16;
+
+    fn nn(&self) -> u8;
 }
 
 impl OpCode for u16 {
@@ -292,5 +309,9 @@ impl OpCode for u16 {
 
     fn y(&self) -> u16 {
         (self & THIRD_FOUR_BITS) >> 4
+    }
+
+    fn nn(&self) -> u8 {
+        (self & LAST_EIGHT_BITS) as u8
     }
 }

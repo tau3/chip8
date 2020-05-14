@@ -108,7 +108,7 @@ impl Chip8 {
             0x7000 => {
                 let x = self.opcode.x();
                 let nn = self.opcode.nn();
-                self.vr[x] += nn;
+                self.vr[x] = self.vr[x].wrapping_add(nn);
                 self.pc += 2;
             }
             0x3000 => {
@@ -163,6 +163,11 @@ impl Chip8 {
                     0x0007 => {
                         let x = self.opcode.x();
                         self.vr[x] = self.delay_timer;
+                        self.pc += 2;
+                    }
+                    0x0018 => {
+                        let x = self.opcode.x();
+                        self.sound_timer = self.vr[x];
                         self.pc += 2;
                     }
                     _ => { println!("[0xF000]: {:X} is not recognized", self.opcode) }

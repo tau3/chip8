@@ -68,11 +68,13 @@ impl Presenter {
             for col in 0..chip8::WIDTH {
                 let color = if self.chip8.is_set(row, col) { WHITE } else { BLACK };
                 canvas.set_draw_color(color);
-                canvas.fill_rect(Rect::new(
+                let rectangle = Rect::new(
                     (col * SCALE as usize) as i32,
                     (row * SCALE as usize) as i32,
                     SCALE,
-                    SCALE)).expect(&format!("failed to draw rect at row {}, column {}", row, col));
+                    SCALE);
+                canvas.fill_rect(rectangle)
+                    .unwrap_or_else(|_| panic!("failed to draw rect at row {}, column {}", row, col))
             }
         }
         canvas.present();

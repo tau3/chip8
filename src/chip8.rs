@@ -60,11 +60,8 @@ impl Chip8 {
 
     pub fn load_game(&mut self, name: &str) {
         let mut file = File::open(name).expect("failed to open game");
-        match file.read_exact(self.memory.slice_from(512)) {
-            Err(ref e) => {
-                if e.kind() == std::io::ErrorKind::Interrupted { panic!("failed to read game") }
-            }
-            _ => {}
+        if let Err(ref e) = file.read_exact(self.memory.slice_from(512)) {
+            if e.kind() == std::io::ErrorKind::Interrupted { panic!("failed to read game") }
         };
     }
 
@@ -85,33 +82,7 @@ impl Chip8 {
                 self.vr[x] = nn & random_number;
                 self.pc += 2;
             }
-            0x8000 => {
-                match self.opcode & LAST_FOUR_BITS {
-                    0x0002 => {
-                        let x = self.opcode.x();
-                        let y = self.opcode.y();
-                        self.vr[x] &= self.vr[y];
-                        self.pc += 2;
-                    }
-                    0x0004 => {
-                        let x = self.opcode.x();
-                        if self.vr[(self.opcode & THIRD_FOUR_BITS) >> 4] > 0xFF - self.vr[x] {
-                            self.vr[0xFu8] = 1u8; // carry
-                        } else {
-                            self.vr[0xFu8] = 0u8;
-                        }
-                        self.vr[x] = self.vr[x].wrapping_add(self.vr[(self.opcode & THIRD_FOUR_BITS) >> 4]);
-                        self.pc += 2;
-                    }
-                    0x0000 => {
-                        let x = self.opcode.x();
-                        let y = self.opcode.y();
-                        self.vr[x] = self.vr[y];
-                        self.pc += 2;
-                    }
-                    _ => { println!("[0x8000]: {:X} is not recognized", self.opcode) }
-                }
-            }
+            0x8000 => self.update_registers(),
             0x0000 => {
                 match self.opcode & LAST_FOUR_BITS {
                     0x000E => {
@@ -127,47 +98,8 @@ impl Chip8 {
                 self.sp += 1;
                 self.pc = self.opcode & LAST_TWELVE_BITS;
             }
-            0xD000 => {
-                let vx: u8 = self.vr[self.opcode.x()];
-                let vy: u8 = self.vr[(self.opcode & THIRD_FOUR_BITS) >> 4];
-                let height: u8 = (self.opcode & LAST_FOUR_BITS) as u8;
-                self.vr[0xFu8] = 0u8;
-                for yline in 0..height {
-                    let pixel = self.memory[self.ir + yline as u16];
-                    for xline in 0..8 {
-                        if (pixel & (0x80 >> xline)) != 0 {
-                            let pos = vx as usize + xline as usize + (vy + yline) as usize * WIDTH;
-                            if self.gfx[pos] == 1 {
-                                self.vr[0xFu8] = 1u8;
-                            }
-                            self.gfx[pos] ^= 1;
-                        }
-                    }
-                }
-                self.draw_flag = true;
-                self.pc += 2;
-            }
-            0xE000 => {
-                match self.opcode & LAST_EIGHT_BITS {
-                    0x009E => {
-                        if self.key[self.vr[self.opcode.x()]] != 0 {
-                            self.pc += 4;
-                        } else {
-                            self.pc += 2;
-                        }
-                    }
-                    0x00A1 => {
-                        let x = self.opcode.x();
-                        let vx = self.vr[x];
-                        if self.key[vx] == 0 {
-                            self.pc += 4;
-                        } else {
-                            self.pc += 2;
-                        }
-                    }
-                    _ => { println!("[0XE000]: {:X} is not recognized", self.opcode) }
-                }
-            }
+            0xD000 => self.draw_sprite(),
+            0xE000 => self.maybe_skip_next(),
             0x6000 => {
                 // upper bits will be truncated while casting u16 to u8
                 self.vr[self.opcode.x()] = (self.opcode & FIRST_EIGHT_BITS) as u8;
@@ -249,6 +181,91 @@ impl Chip8 {
             }
             self.sound_timer -= 1;
         }
+    }
+
+    fn update_registers(&mut self) {
+        match self.opcode & LAST_FOUR_BITS {
+            0x0002 => {
+                let x = self.opcode.x();
+                let y = self.opcode.y();
+                self.vr[x] &= self.vr[y];
+                self.pc += 2;
+            }
+            0x0004 => { self.add_vx_vy() }
+            0x0005 => {
+                let x = self.opcode.x();
+                let y = self.opcode.y();
+                if self.vr[y] > self.vr[x] {
+                    self.vr[0xFu8] = 1u8;
+                } else {
+                    self.vr[0xFu8] = 0u8; // borrow
+                }
+                self.vr[x] = self.vr[x].wrapping_rem(self.vr[y]);
+                self.pc += 2;
+            }
+            0x0000 => {
+                let x = self.opcode.x();
+                let y = self.opcode.y();
+                self.vr[x] = self.vr[y];
+                self.pc += 2;
+            }
+            _ => { println!("[0x8000]: {:X} is not recognized", self.opcode) }
+        }
+    }
+
+    fn maybe_skip_next(&mut self) {
+        match self.opcode & LAST_EIGHT_BITS {
+            0x009E => {
+                if self.key[self.vr[self.opcode.x()]] != 0 {
+                    self.pc += 4;
+                } else {
+                    self.pc += 2;
+                }
+            }
+            0x00A1 => {
+                let x = self.opcode.x();
+                let vx = self.vr[x];
+                if self.key[vx] == 0 {
+                    self.pc += 4;
+                } else {
+                    self.pc += 2;
+                }
+            }
+            _ => { println!("[0XE000]: {:X} is not recognized", self.opcode) }
+        }
+    }
+
+    fn draw_sprite(&mut self) {
+        let vx: u8 = self.vr[self.opcode.x()];
+        let vy: u8 = self.vr[self.opcode.y()];
+        let height: u8 = (self.opcode & LAST_FOUR_BITS) as u8;
+        self.vr[0xFu8] = 0u8;
+        for yline in 0..height {
+            let pixel = self.memory[self.ir + yline as u16];
+            for xline in 0..8 {
+                if (pixel & (0x80 >> xline)) != 0 {
+                    let pos = vx as usize + xline as usize + (vy + yline) as usize * WIDTH;
+                    if self.gfx[pos] == 1 {
+                        self.vr[0xFu8] = 1u8;
+                    }
+                    self.gfx[pos] ^= 1;
+                }
+            }
+        }
+        self.draw_flag = true;
+        self.pc += 2;
+    }
+
+    fn add_vx_vy(&mut self) {
+        let x = self.opcode.x();
+        let y = self.opcode.y();
+        if self.vr[y] > 0xFF - self.vr[x] {
+            self.vr[0xFu8] = 1u8; // carry
+        } else {
+            self.vr[0xFu8] = 0u8;
+        }
+        self.vr[x] = self.vr[x].wrapping_add(self.vr[y]);
+        self.pc += 2;
     }
 
     pub fn is_draw_flag(&self) -> bool {

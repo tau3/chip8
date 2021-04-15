@@ -9,7 +9,8 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use crate::chip8;
-use crate::chip8::Chip8;
+use crate::chip8::{Chip8, Key, KeyState};
+use std::collections::HashMap;
 
 static SCALE: u32 = 10;
 
@@ -45,6 +46,9 @@ impl Presenter {
 
         let mut event_pump = sdl_context.event_pump()?;
 
+        let mut keycode_to_key = HashMap::new();
+        keycode_to_key.insert(Keycode::Num1, Key::K1);
+        keycode_to_key.insert(Keycode::Num2, Key::K2);
         'running: loop {
             for event in event_pump.poll_iter() {
                 match event {
@@ -54,6 +58,24 @@ impl Presenter {
                         ..
                     } => {
                         break 'running;
+                    }
+                    Event::KeyDown {
+                        keycode: Some(keycode), ..
+                    } => {
+                        if let Some(key) = keycode_to_key.get(&keycode) {
+                            self.chip8.set_keys(key, &KeyState::PRESSED)
+                        } else {
+                            println!("unrecognized key press: {:?}", keycode);
+                        }
+                    }
+                    Event::KeyUp {
+                        keycode: Some(keycode), ..
+                    } => {
+                        if let Some(key) = keycode_to_key.get(&keycode) {
+                            self.chip8.set_keys(key, &KeyState::RELEASED)
+                        } else {
+                            println!("unrecognized key release: {:?}", keycode);
+                        }
                     }
                     _ => {}
                 }
@@ -65,7 +87,7 @@ impl Presenter {
             if self.chip8.is_draw_flag() {
                 self.draw_graphics(&mut canvas);
             }
-            self.chip8.set_keys();
+            // self.chip8.set_keys();
         }
 
         Ok(())

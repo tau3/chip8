@@ -84,6 +84,28 @@ impl Chip8 {
                 self.vr[x] = nn & random_number;
                 self.pc += 2;
             }
+            // 0xE000 => {
+            //     match self.opcode & LAST_EIGHT_BITS {
+            //         0x009E => {
+            //             println!("{}", self.opcode);
+            //             if self.key[self.vr[self.opcode.x()]] != 0 {
+            //                 self.pc += 4;
+            //             } else {
+            //                 self.pc += 2;
+            //             }
+            //         }
+            //         0x00A1 => {
+            //             if self.key[self.vr[self.opcode.x()]] == 0 {
+            //                 self.pc += 4;
+            //             } else {
+            //                 self.pc += 2;
+            //             }
+            //         }
+            //         _ => {
+            //             println!("[0xE000]: {:X} is not recognized", self.opcode)
+            //         }
+            //     }
+            // }
             0x8000 => self.update_registers(),
             0x0000 => match self.opcode & LAST_FOUR_BITS {
                 0x000E => {
@@ -169,6 +191,11 @@ impl Chip8 {
                 0x0018 => {
                     let x = self.opcode.x();
                     self.sound_timer = self.vr[x];
+                    self.pc += 2;
+                }
+                0x001E => {
+                    let x = self.opcode.x();
+                    self.ir += self.vr[x] as u16;
                     self.pc += 2;
                 }
                 _ => {
@@ -285,7 +312,22 @@ impl Chip8 {
         self.draw_flag
     }
 
-    pub fn set_keys(&self) {}
+    pub fn set_keys(&mut self, key: &Key, state: &KeyState) {
+        let state = if *state == KeyState::PRESSED { 1 } else { 0 };
+        match key {
+            Key::K1 => {
+                self.key[0 as usize] = state;
+                println!("handle key: {:?}, state: {:?}", key, state);
+            }
+            Key::K2 => {
+                self.key[1 as usize] = state;
+                println!("handle key: {:?}, state: {:?}", key, state);
+            }
+            _ => {
+                println!("Key {:?} is not implemented", key);
+            }
+        }
+    }
 
     pub fn is_set(&self, row: usize, col: usize) -> bool {
         self.gfx[row * WIDTH + col] == 1
@@ -344,4 +386,16 @@ impl OpCode for u16 {
     fn nn(&self) -> u8 {
         (self & LAST_EIGHT_BITS) as u8
     }
+}
+
+#[derive(Debug)]
+pub enum Key {
+    K1,
+    K2,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum KeyState {
+    PRESSED,
+    RELEASED,
 }

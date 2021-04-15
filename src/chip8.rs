@@ -312,21 +312,8 @@ impl Chip8 {
         self.draw_flag
     }
 
-    pub fn set_keys(&mut self, key: &Key, state: &KeyState) {
-        let state = if *state == KeyState::PRESSED { 1 } else { 0 };
-        match key {
-            Key::K1 => {
-                self.key[0 as usize] = state;
-                println!("handle key: {:?}, state: {:?}", key, state);
-            }
-            Key::K2 => {
-                self.key[1 as usize] = state;
-                println!("handle key: {:?}, state: {:?}", key, state);
-            }
-            _ => {
-                println!("Key {:?} is not implemented", key);
-            }
-        }
+    pub fn set_keys(&mut self, code: u8, state: bool) {
+        self.key[code] = state as u8;
     }
 
     pub fn is_set(&self, row: usize, col: usize) -> bool {
@@ -386,16 +373,4 @@ impl OpCode for u16 {
     fn nn(&self) -> u8 {
         (self & LAST_EIGHT_BITS) as u8
     }
-}
-
-#[derive(Debug)]
-pub enum Key {
-    K1,
-    K2,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum KeyState {
-    PRESSED,
-    RELEASED,
 }

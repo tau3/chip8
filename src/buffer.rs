@@ -7,7 +7,7 @@ pub struct Buffer<T: Clone + From<u8>> {
 
 impl<T: Clone + From<u8>> Buffer<T> {
     pub fn new(size: usize) -> Buffer<T> {
-        let memory = vec![(0 as u8).into(); size];
+        let memory = vec![(0_u8).into(); size];
         Buffer { buffer: memory }
     }
 }

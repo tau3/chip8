@@ -61,7 +61,9 @@ impl Chip8 {
     pub fn load_game(&mut self, name: &str) {
         let mut file = File::open(name).expect("failed to open game");
         if let Err(ref e) = file.read_exact(self.memory.slice_from(512)) {
-            if e.kind() == std::io::ErrorKind::Interrupted { panic!("failed to read game") }
+            if e.kind() == std::io::ErrorKind::Interrupted {
+                panic!("failed to read game")
+            }
         };
     }
 
@@ -83,16 +85,16 @@ impl Chip8 {
                 self.pc += 2;
             }
             0x8000 => self.update_registers(),
-            0x0000 => {
-                match self.opcode & LAST_FOUR_BITS {
-                    0x000E => {
-                        self.sp -= 1;
-                        self.pc = self.stack[self.sp];
-                        self.pc += 2;
-                    }
-                    _ => { println!("[0x0000]: {:X} is not recognized", self.opcode) }
+            0x0000 => match self.opcode & LAST_FOUR_BITS {
+                0x000E => {
+                    self.sp -= 1;
+                    self.pc = self.stack[self.sp];
+                    self.pc += 2;
                 }
-            }
+                _ => {
+                    println!("[0x0000]: {:X} is not recognized", self.opcode)
+                }
+            },
             0x2000 => {
                 self.stack[self.sp] = self.pc;
                 self.sp += 1;
@@ -133,47 +135,49 @@ impl Chip8 {
                 let nnn = self.opcode & LAST_TWELVE_BITS;
                 self.pc = nnn;
             }
-            0xF000 => {
-                match self.opcode & LAST_EIGHT_BITS {
-                    0x0033 => {
-                        self.memory[self.ir] = self.vr[self.opcode.x()] / 100;
-                        self.memory[self.ir + 1] = (self.vr[self.opcode.x()] / 10) % 10;
-                        self.memory[self.ir + 2] = (self.vr[self.opcode.x()] % 100) % 10;
-                        self.pc += 2;
-                    }
-                    0x0065 => {
-                        let x = self.opcode.x();
-                        let mut offset = self.ir;
-                        for i in 0..=x {
-                            self.vr[i] = self.memory[offset];
-                            offset += 1;
-                        }
-                        self.pc += 2;
-                    }
-                    0x0029 => {
-                        let x = self.opcode.x();
-                        self.ir = self.vr[x] as u16 * 5;
-                        self.pc += 2;
-                    }
-                    0x0015 => {
-                        let x = self.opcode.x();
-                        self.delay_timer = x as u8;
-                        self.pc += 2;
-                    }
-                    0x0007 => {
-                        let x = self.opcode.x();
-                        self.vr[x] = self.delay_timer;
-                        self.pc += 2;
-                    }
-                    0x0018 => {
-                        let x = self.opcode.x();
-                        self.sound_timer = self.vr[x];
-                        self.pc += 2;
-                    }
-                    _ => { println!("[0xF000]: {:X} is not recognized", self.opcode) }
+            0xF000 => match self.opcode & LAST_EIGHT_BITS {
+                0x0033 => {
+                    self.memory[self.ir] = self.vr[self.opcode.x()] / 100;
+                    self.memory[self.ir + 1] = (self.vr[self.opcode.x()] / 10) % 10;
+                    self.memory[self.ir + 2] = (self.vr[self.opcode.x()] % 100) % 10;
+                    self.pc += 2;
                 }
+                0x0065 => {
+                    let x = self.opcode.x();
+                    let mut offset = self.ir;
+                    for i in 0..=x {
+                        self.vr[i] = self.memory[offset];
+                        offset += 1;
+                    }
+                    self.pc += 2;
+                }
+                0x0029 => {
+                    let x = self.opcode.x();
+                    self.ir = self.vr[x] as u16 * 5;
+                    self.pc += 2;
+                }
+                0x0015 => {
+                    let x = self.opcode.x();
+                    self.delay_timer = x as u8;
+                    self.pc += 2;
+                }
+                0x0007 => {
+                    let x = self.opcode.x();
+                    self.vr[x] = self.delay_timer;
+                    self.pc += 2;
+                }
+                0x0018 => {
+                    let x = self.opcode.x();
+                    self.sound_timer = self.vr[x];
+                    self.pc += 2;
+                }
+                _ => {
+                    println!("[0xF000]: {:X} is not recognized", self.opcode)
+                }
+            },
+            _ => {
+                println!("{:X} is not recognized", self.opcode)
             }
-            _ => { println!("{:X} is not recognized", self.opcode) }
         }
 
         // update timers
@@ -196,7 +200,7 @@ impl Chip8 {
                 self.vr[x] &= self.vr[y];
                 self.pc += 2;
             }
-            0x0004 => { self.add_vx_vy() }
+            0x0004 => self.add_vx_vy(),
             0x0005 => {
                 let x = self.opcode.x();
                 let y = self.opcode.y();
@@ -214,7 +218,9 @@ impl Chip8 {
                 self.vr[x] = self.vr[y];
                 self.pc += 2;
             }
-            _ => { println!("[0x8000]: {:X} is not recognized", self.opcode) }
+            _ => {
+                println!("[0x8000]: {:X} is not recognized", self.opcode)
+            }
         }
     }
 
@@ -236,7 +242,9 @@ impl Chip8 {
                     self.pc += 2;
                 }
             }
-            _ => { println!("[0XE000]: {:X} is not recognized", self.opcode) }
+            _ => {
+                println!("[0XE000]: {:X} is not recognized", self.opcode)
+            }
         }
     }
 

@@ -30,8 +30,12 @@ impl Presenter {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
 
-        let window = video_subsystem.window("chip8", SCALE * chip8::WIDTH as u32,
-                                            SCALE * chip8::HEIGHT as u32)
+        let window = video_subsystem
+            .window(
+                "chip8",
+                SCALE * chip8::WIDTH as u32,
+                SCALE * chip8::HEIGHT as u32,
+            )
             .position_centered()
             .opengl()
             .build()
@@ -44,7 +48,11 @@ impl Presenter {
         'running: loop {
             for event in event_pump.poll_iter() {
                 match event {
-                    Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => {
                         break 'running;
                     }
                     _ => {}
@@ -66,15 +74,21 @@ impl Presenter {
     fn draw_graphics(&self, canvas: &mut Canvas<Window>) {
         for row in 0..chip8::HEIGHT {
             for col in 0..chip8::WIDTH {
-                let color = if self.chip8.is_set(row, col) { WHITE } else { BLACK };
+                let color = if self.chip8.is_set(row, col) {
+                    WHITE
+                } else {
+                    BLACK
+                };
                 canvas.set_draw_color(color);
                 let rectangle = Rect::new(
                     (col * SCALE as usize) as i32,
                     (row * SCALE as usize) as i32,
                     SCALE,
-                    SCALE);
-                canvas.fill_rect(rectangle)
-                    .unwrap_or_else(|_| panic!("failed to draw rect at row {}, column {}", row, col))
+                    SCALE,
+                );
+                canvas.fill_rect(rectangle).unwrap_or_else(|_| {
+                    panic!("failed to draw rect at row {}, column {}", row, col)
+                })
             }
         }
         canvas.present();

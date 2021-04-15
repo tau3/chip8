@@ -5,6 +5,7 @@ use rand::Rng;
 
 use crate::buffer::Buffer;
 
+// sp - stack pointer
 pub struct Chip8 {
     opcode: u16,
     memory: Buffer<u8>,
@@ -70,6 +71,7 @@ impl Chip8 {
     pub fn emulate_cycle(&mut self) {
         // fetch opcode (two bytes)
         self.opcode = ((self.memory[self.pc] as u16) << 8) | self.memory[self.pc + 1] as u16;
+        println!("opcode {}", self.opcode);
 
         // decode opcode
         match self.opcode & FIRST_FOUR_BITS {
@@ -84,38 +86,23 @@ impl Chip8 {
                 self.vr[x] = nn & random_number;
                 self.pc += 2;
             }
-            // 0xE000 => {
-            //     match self.opcode & LAST_EIGHT_BITS {
-            //         0x009E => {
-            //             println!("{}", self.opcode);
-            //             if self.key[self.vr[self.opcode.x()]] != 0 {
-            //                 self.pc += 4;
-            //             } else {
-            //                 self.pc += 2;
-            //             }
-            //         }
-            //         0x00A1 => {
-            //             if self.key[self.vr[self.opcode.x()]] == 0 {
-            //                 self.pc += 4;
-            //             } else {
-            //                 self.pc += 2;
-            //             }
-            //         }
-            //         _ => {
-            //             println!("[0xE000]: {:X} is not recognized", self.opcode)
-            //         }
-            //     }
-            // }
             0x8000 => self.update_registers(),
-            0x0000 => match self.opcode & LAST_FOUR_BITS {
+            0x0000 => match self.opcode & LAST_EIGHT_BITS {
                 0x000E => {
                     self.sp -= 1;
                     self.pc = self.stack[self.sp];
                     self.pc += 2;
                 }
-                _ => {
-                    println!("[0x0000]: {:X} is not recognized", self.opcode)
+                0x00E0 => {
+                    self.gfx.all_zeros();
+                    self.pc += 2;
                 }
+                0x00EE => {
+                    self.sp -= 1;
+                    self.pc = self.stack[self.sp];
+                    self.pc += 2;
+                }
+                _ => println!("[0x0000]: {:X} is not recognized", self.opcode)
             },
             0x2000 => {
                 self.stack[self.sp] = self.pc;
@@ -198,13 +185,9 @@ impl Chip8 {
                     self.ir += self.vr[x] as u16;
                     self.pc += 2;
                 }
-                _ => {
-                    println!("[0xF000]: {:X} is not recognized", self.opcode)
-                }
+                _ => println!("[0xF000]: {:X} is not recognized", self.opcode)
             },
-            _ => {
-                println!("{:X} is not recognized", self.opcode)
-            }
+            _ => println!("{:X} is not recognized", self.opcode)
         }
 
         // update timers
@@ -221,10 +204,22 @@ impl Chip8 {
 
     fn update_registers(&mut self) {
         match self.opcode & LAST_FOUR_BITS {
+            0x0000 => {
+                let x = self.opcode.x();
+                let y = self.opcode.y();
+                self.vr[x] = self.vr[y];
+                self.pc += 2;
+            }
             0x0002 => {
                 let x = self.opcode.x();
                 let y = self.opcode.y();
                 self.vr[x] &= self.vr[y];
+                self.pc += 2;
+            }
+            0x0003 => {
+                let x = self.opcode.x();
+                let y = self.opcode.y();
+                self.vr[x] = self.vr[x] ^ self.vr[y];
                 self.pc += 2;
             }
             0x0004 => self.add_vx_vy(),
@@ -239,15 +234,13 @@ impl Chip8 {
                 self.vr[x] = self.vr[x].wrapping_rem(self.vr[y]);
                 self.pc += 2;
             }
-            0x0000 => {
+            0x0006 => {
                 let x = self.opcode.x();
-                let y = self.opcode.y();
-                self.vr[x] = self.vr[y];
+                self.vr[0xF as usize] = self.vr[x] & 0x1; // 0x1 - least significant (last) bit mask
+                self.vr[x] >>= 1;
                 self.pc += 2;
             }
-            _ => {
-                println!("[0x8000]: {:X} is not recognized", self.opcode)
-            }
+            _ => println!("[0x8000]: {:X} is not recognized", self.opcode)
         }
     }
 
@@ -269,9 +262,7 @@ impl Chip8 {
                     self.pc += 2;
                 }
             }
-            _ => {
-                println!("[0XE000]: {:X} is not recognized", self.opcode)
-            }
+            _ => println!("[0XE000]: {:X} is not recognized", self.opcode)
         }
     }
 

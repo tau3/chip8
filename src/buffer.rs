@@ -31,3 +31,9 @@ impl<T: Clone + From<u8>> Buffer<T> {
         &mut self.buffer[from..]
     }
 }
+
+impl<T: Clone + From<u8>> Buffer<T> {
+    pub fn all_zeros(&mut self) {
+        self.buffer = vec![(0_u8).into(); self.buffer.len()];
+    }
+}

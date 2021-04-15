@@ -46,7 +46,7 @@ impl Presenter {
         let mut event_pump = sdl_context.event_pump()?;
 
         'running: loop {
-            for event in event_pump.poll_iter() {
+            if let Some(event) = event_pump.poll_event() {
                 match event {
                     Event::Quit { .. }
                     | Event::KeyDown {
@@ -60,8 +60,6 @@ impl Presenter {
                     } => {
                         if let Some(chip_key_code) = key_to_code(keycode) {
                             self.chip8.set_keys(chip_key_code, true)
-                        } else {
-                            println!("unrecognized key press: {:?}", keycode);
                         }
                     }
                     Event::KeyUp {
@@ -69,21 +67,18 @@ impl Presenter {
                     } => {
                         if let Some(chip_key_code) = key_to_code(keycode) {
                             self.chip8.set_keys(chip_key_code, false)
-                        } else {
-                            println!("unrecognized key release: {:?}", keycode);
                         }
                     }
                     _ => {}
                 }
             }
 
-            thread::sleep(Duration::from_millis(1000 / 60));
+            // thread::sleep(Duration::from_millis(1000 / 60 / 4));
 
             self.chip8.emulate_cycle();
             if self.chip8.is_draw_flag() {
                 self.draw_graphics(&mut canvas);
             }
-            // self.chip8.set_keys();
         }
 
         Ok(())

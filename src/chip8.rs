@@ -71,7 +71,6 @@ impl Chip8 {
     pub fn emulate_cycle(&mut self) {
         // fetch opcode (two bytes)
         self.opcode = ((self.memory[self.pc] as u16) << 8) | self.memory[self.pc + 1] as u16;
-        println!("opcode {}", self.opcode);
 
         // decode opcode
         match self.opcode & FIRST_FOUR_BITS {
@@ -95,6 +94,7 @@ impl Chip8 {
                 }
                 0x00E0 => {
                     self.gfx.all_zeros();
+                    self.draw_flag = true;
                     self.pc += 2;
                 }
                 0x00EE => {
@@ -167,7 +167,7 @@ impl Chip8 {
                 }
                 0x0015 => {
                     let x = self.opcode.x();
-                    self.delay_timer = x as u8;
+                    self.delay_timer = self.vr[x];
                     self.pc += 2;
                 }
                 0x0007 => {
@@ -219,7 +219,7 @@ impl Chip8 {
             0x0003 => {
                 let x = self.opcode.x();
                 let y = self.opcode.y();
-                self.vr[x] = self.vr[x] ^ self.vr[y];
+                self.vr[x] ^= self.vr[y];
                 self.pc += 2;
             }
             0x0004 => self.add_vx_vy(),
@@ -236,7 +236,7 @@ impl Chip8 {
             }
             0x0006 => {
                 let x = self.opcode.x();
-                self.vr[0xF as usize] = self.vr[x] & 0x1; // 0x1 - least significant (last) bit mask
+                self.vr[0xF_usize] = self.vr[x] & 0x1; // 0x1 - least significant (last) bit mask
                 self.vr[x] >>= 1;
                 self.pc += 2;
             }
@@ -299,8 +299,10 @@ impl Chip8 {
         self.pc += 2;
     }
 
-    pub fn is_draw_flag(&self) -> bool {
-        self.draw_flag
+    pub fn get_draw_flag(&mut self) -> bool {
+        let result = self.draw_flag;
+        self.draw_flag = false;
+        result
     }
 
     pub fn set_keys(&mut self, code: u8, state: bool) {

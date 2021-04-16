@@ -73,10 +73,10 @@ impl Presenter {
                 }
             }
 
-            // thread::sleep(Duration::from_millis(1000 / 60 / 4));
+            thread::sleep(Duration::from_millis(2));
 
             self.chip8.emulate_cycle();
-            if self.chip8.is_draw_flag() {
+            if self.chip8.get_draw_flag() {
                 self.draw_graphics(&mut canvas);
             }
         }
